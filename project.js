@@ -30,8 +30,9 @@ var cohesionMultiplier = 0;
 const maxWorldX = 40;
 const maxWorldY = 20;
 const maxWorldZ = 20;
-const birdRadius = 0.5;
+const birdRadius = 1;
 const spawnRadius = 5;
+const lightColor = hex_color("#f5d20c");
 
 class Bird {
     constructor() {
@@ -145,13 +146,16 @@ export class Project extends Scene {
         // At the beginning of our program, load one of each of these shape definitions onto the GPU.
         this.shapes = {
             world_outline: new Cube_Outline(),
-            bird: new defs.Subdivision_Sphere(4)
+            bird: new defs.Subdivision_Sphere(4),
+            bird_shape: new (defs.Tetrahedron.prototype.make_flat_shaded_version())(),
+            bird_shape_noflat: new defs.Tetrahedron(),
+            light: new defs.Subdivision_Sphere(4),
         };
 
         // *** Materials
         this.materials = {
             white: new Material(new defs.Basic_Shader()),
-            test: new Material(new defs.Phong_Shader(), {ambient: 1, diffusivity: 0, specularity: 0, color: hex_color("#ffffff")})
+            test: new Material(new defs.Phong_Shader(), {ambient: 0.15, diffusivity: 1.0, specularity: 0, color: hex_color("#ffffff")})
         }
 
         this.initial_camera_location = Mat4.look_at(vec3(maxWorldX / 2, maxWorldY * 1.5, maxWorldZ * 3), vec3(maxWorldX/2, maxWorldY/2, maxWorldZ/2), vec3(0, 1, 0));
@@ -208,21 +212,27 @@ export class Project extends Scene {
         // this.shapes.[XXX].draw([XXX]) // <--example
 
         // TODO: Lighting (Requirement 2)
-        const light_position = vec4(0, 100, 0, 0);
+        const light_position = vec4(maxWorldX/2, maxWorldY/2, maxWorldZ/2, 1);
         // The parameters of the Light are: position, color, size
-        program_state.lights = [new Light(light_position, color(1, 1, 1, 1), 1000)];
+        program_state.lights = [new Light(light_position, lightColor, 1000)];
 
         // TODO:  Fill in matrix operations and drawing code to draw the solar system scene (Requirements 3 and 4)
         const t = program_state.animation_time / 1000, dt = program_state.animation_delta_time / 1000;
-        const yellow = hex_color("#fac91a");
         let root = Mat4.identity();
         
         this.shapes.world_outline.draw(context, program_state, root.times(Mat4.scale(maxWorldX / 2, maxWorldY / 2, maxWorldZ / 2)).times(Mat4.translation(1, 1, 1)), this.materials.white, "LINES");
+       
+        this.shapes.light.draw(context, program_state, root.times(Mat4.translation(maxWorldX/2, maxWorldY/2, maxWorldZ/2)), this.materials.test.override({color: lightColor, diffusivity: 0.0, ambient: 1.0}));
+       
         // draw the birds
         this.birds.forEach(bird => {
-            let birdBasis = root.times(Mat4.scale(birdRadius, birdRadius, birdRadius)).times(Mat4.translation(bird.position[0] / birdRadius, bird.position[1] / birdRadius, bird.position[2] / birdRadius));
+            let birdBasis = root
+            .times(Mat4.scale(birdRadius, birdRadius, birdRadius))
+            .times(Mat4.translation(bird.position[0] / birdRadius, bird.position[1] / birdRadius, bird.position[2] / birdRadius))
+            //.times(Mat4.rotation(Math.tan(bird.velocity[1]/bird.velocity[0]), 0, 0, 1))
+            //.times(Mat4.rotation(Math.tan(bird.velocity[2]/bird.velocity[0]), 0, 1, 0));
             // console.log(bird.position);
-            this.shapes.bird.draw(context, program_state, birdBasis, this.materials.test);
+            this.shapes.bird_shape_noflat.draw(context, program_state, birdBasis, this.materials.test);
             bird.updateMotion(this.birds);
         });
     }
