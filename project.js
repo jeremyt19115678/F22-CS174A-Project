@@ -24,6 +24,50 @@ class Cube_Outline extends Shape {
     }
 }
 
+class Tetrahedron_Shift extends Shape {
+    // **Tetrahedron** demonstrates flat vs smooth shading (a boolean argument selects
+    // which one).  It is also our first 3D, non-planar shape.  Four triangles share
+    // corners with each other.  Unless we store duplicate points at each corner
+    // (storing the same position at each, but different normal vectors), the lighting
+    // will look "off".  To get crisp seams at the edges we need the repeats.
+    constructor() {
+        super("position", "normal");
+        const a = 1 / Math.sqrt(3);
+        this.arrays.position = Vector3.cast(
+            [1, 0, 0], [-1, 1, 0], [-1, -1, 1],  // front
+            [1, 0, 0], [-1, -1, -1], [-1, 1, 0], // back
+            [1, 0, 0], [-1, -1, 1], [-1, -1, -1], // bottom
+            [-1, 1, 0], [-1, -1, -1], [-1, -1, 1]);// left
+
+        this.arrays.normal = Vector3.cast(   // TODO: FIX
+            [a, a, a], [a, a, a], [a, a, a],
+            [a, a, -a], [a, a, -a], [a, a, -a],
+            [0, -1, 0], [0, -1, 0], [0, -1, 0],
+            [-1, 0, 0], [-1, 0, 0], [-1, 0, 0]
+        );
+
+        this.indices.push(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11);
+    }
+}
+    
+
+class Line extends Shape{
+    constructor() {
+        super("position", "color");
+        //  TODO (Requirement 5).
+        // When a set of lines is used in graphics, you should think of the list entries as
+        // broken down into pairs; each pair of vertices will be drawn as a line segment.
+        // Note: since the outline is rendered with Basic_shader, you need to redefine the position and color of each vertex    
+        this.arrays.position = Vector3.cast(
+            [0, 0, 0], [0, 0, 1]);
+        this.arrays.color = Vector3.cast(
+            color(1,1,1,1), color(1,1,1,1)
+            );
+        this.indices = false;
+    }
+}
+
+
 var separationMultiplier = 2;
 var alignmentMultiplier = 0;
 var cohesionMultiplier = 0;
@@ -150,6 +194,9 @@ export class Project extends Scene {
             bird_shape: new (defs.Tetrahedron.prototype.make_flat_shaded_version())(true),
             bird_shape_noflat: new defs.Tetrahedron(),
             light: new defs.Subdivision_Sphere(4),
+            new_bird: new Tetrahedron_Shift(),
+            cone_bird: new defs.Closed_Cone(10, 10),
+            line_segment: new Line(),
         };
 
         // *** Materials
@@ -196,6 +243,22 @@ export class Project extends Scene {
         });
     }
 
+
+    rotateAlign(v1, v2)
+    {
+        // https://gist.github.com/kevinmoran/b45980723e53edeb8a5a43c49f134724
+        let axis = v1.cross(v2);
+        let cosA = v1.dot(v2);
+        let k = 1.0 / (1.0 + cosA);
+        let result = Vector.cast([(axis[0] * axis[0] * k) + cosA, (axis[1] * axis[0] * k) - axis[2], (axis[2] * axis[0] * k) + axis[1], 0],
+        [(axis[0] * axis[1] * k) + axis[2], (axis[1] * axis[1] * k) + cosA, (axis[2] * axis[1] * k) - axis[0], 0],
+        [(axis[0] * axis[2] * k) - axis[1], (axis[1] * axis[2] * k) + axis[0], (axis[2] * axis[2] * k) + cosA, 0],
+        [0, 0, 0, 1]
+        );
+    
+        return result;
+    }
+
     display(context, program_state) {
         // display():  Called once per frame of animation.
         // Setup -- This part sets up the scene's overall camera matrix, projection matrix, and lights:
@@ -212,9 +275,9 @@ export class Project extends Scene {
         // this.shapes.[XXX].draw([XXX]) // <--example
 
         // TODO: Lighting (Requirement 2)
-        const light_position = vec4(maxWorldX/2, maxWorldY/2, maxWorldZ/2, 1);
+        const light_position = vec4(1, 1, 1, 0);
         // The parameters of the Light are: position, color, size
-        program_state.lights = [new Light(light_position, lightColor, 1000)];
+        program_state.lights = [new Light(light_position, lightColor, 10)];
 
         // TODO:  Fill in matrix operations and drawing code to draw the solar system scene (Requirements 3 and 4)
         const t = program_state.animation_time / 1000, dt = program_state.animation_delta_time / 1000;
@@ -222,18 +285,21 @@ export class Project extends Scene {
         
         this.shapes.world_outline.draw(context, program_state, root.times(Mat4.scale(maxWorldX / 2, maxWorldY / 2, maxWorldZ / 2)).times(Mat4.translation(1, 1, 1)), this.materials.white, "LINES");
        
-        this.shapes.light.draw(context, program_state, root.times(Mat4.translation(maxWorldX/2, maxWorldY/2, maxWorldZ/2)), this.materials.test.override({color: lightColor, diffusivity: 0.0, ambient: 1.0}));
+        //this.shapes.light.draw(context, program_state, root.times(Mat4.translation(maxWorldX/2, maxWorldY/2, maxWorldZ/2)), this.materials.test.override({color: lightColor, diffusivity: 0.0, ambient: 1.0}));
        
         // draw the birds
         this.birds.forEach(bird => {
+
             let birdBasis = root
             .times(Mat4.scale(birdRadius, birdRadius, birdRadius))
             .times(Mat4.translation(bird.position[0] / birdRadius, bird.position[1] / birdRadius, bird.position[2] / birdRadius))
-            //.times(Mat4.rotation(Math.tan(bird.velocity[1]/bird.velocity[0]), 0, 0, 1))
-            //.times(Mat4.rotation(Math.tan(bird.velocity[2]/bird.velocity[0]), 0, 1, 0));
+            .times(this.rotateAlign(vec3(0, 0, 1), vec3(bird.velocity[0], bird.velocity[1], bird.velocity[2]).normalized()));
             // console.log(bird.position);
-            this.shapes.bird_shape.draw(context, program_state, birdBasis, this.materials.test);
+            this.shapes.cone_bird.draw(context, program_state, birdBasis, this.materials.test);
             bird.updateMotion(this.birds);
+            
+            this.shapes.line_segment.draw(context, program_state, birdBasis.times(Mat4.scale(2, 2, 2)), this.materials.white, "LINES");
         });
+        this.shapes.cone_bird.draw(context, program_state, Mat4.identity(), this.materials.test);
     }
 }
