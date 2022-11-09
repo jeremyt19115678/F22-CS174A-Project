@@ -68,20 +68,20 @@ class Line extends Shape{
 }
 
 
-var separationMultiplier = 2;
+var separationMultiplier = 0;
 var alignmentMultiplier = 0;
 var cohesionMultiplier = 0;
 const maxWorldX = 40;
 const maxWorldY = 20;
 const maxWorldZ = 20;
-const birdRadius = 1;
+const birdRadius = 0.8;
 const spawnRadius = 5;
 const lightColor = hex_color("#f5d20c");
 
 class Bird {
     constructor() {
         this.position = vec3(spawnRadius * Math.random() - spawnRadius / 2 + maxWorldX / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldY / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldZ / 2); // initialized at random position in the middle of the world
-        this.velocity = vec3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); // initialized with random velocity
+        this.velocity = vec3(0.1, 0, 0);// vec3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); // initialized with random velocity
         this.acceleration = vec3(0, 0, 0);
         this.maxForce = 0.03;
         this.maxSpeed = 0.1;
@@ -111,7 +111,7 @@ class Bird {
     }
 
     getSeparationForce(birds) {
-        let desiredSeparation = 1;
+        let desiredSeparation = 3;
         let inNeighborhood = 0;
         let force = vec3(0, 0, 0);
         for (let i = 0; i < birds.length; i++) {
@@ -263,7 +263,7 @@ export class Project extends Scene {
         // display():  Called once per frame of animation.
         // Setup -- This part sets up the scene's overall camera matrix, projection matrix, and lights:
         if (!context.scratchpad.controls) {
-            this.children.push(context.scratchpad.controls = new defs.Movement_Controls());
+            this.children.push(context.scratchpad.controls = new defs.Movement_Controls(maxWorldX, maxWorldY, maxWorldZ));
             // Define the global camera and projection matrices, which are stored in program_state.
             program_state.set_camera(this.initial_camera_location);
         }
@@ -300,6 +300,5 @@ export class Project extends Scene {
             
             this.shapes.line_segment.draw(context, program_state, birdBasis.times(Mat4.scale(2, 2, 2)), this.materials.white, "LINES");
         });
-        this.shapes.cone_bird.draw(context, program_state, Mat4.identity(), this.materials.test);
     }
 }
