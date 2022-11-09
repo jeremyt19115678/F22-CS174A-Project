@@ -147,7 +147,7 @@ export class Project extends Scene {
         this.shapes = {
             world_outline: new Cube_Outline(),
             bird: new defs.Subdivision_Sphere(4),
-            bird_shape: new (defs.Tetrahedron.prototype.make_flat_shaded_version())(),
+            bird_shape: new (defs.Tetrahedron.prototype.make_flat_shaded_version())(true),
             bird_shape_noflat: new defs.Tetrahedron(),
             light: new defs.Subdivision_Sphere(4),
         };
@@ -232,7 +232,7 @@ export class Project extends Scene {
             //.times(Mat4.rotation(Math.tan(bird.velocity[1]/bird.velocity[0]), 0, 0, 1))
             //.times(Mat4.rotation(Math.tan(bird.velocity[2]/bird.velocity[0]), 0, 1, 0));
             // console.log(bird.position);
-            this.shapes.bird_shape_noflat.draw(context, program_state, birdBasis, this.materials.test);
+            this.shapes.bird_shape.draw(context, program_state, birdBasis, this.materials.test);
             bird.updateMotion(this.birds);
         });
     }
