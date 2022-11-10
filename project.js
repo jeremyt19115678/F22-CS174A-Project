@@ -68,9 +68,9 @@ class Line extends Shape{
 }
 
 
-var separationMultiplier = 0.1;
-var alignmentMultiplier = 0.5;
-var cohesionMultiplier = 0;
+var separationMultiplier = 1.5;
+var alignmentMultiplier = 1;
+var cohesionMultiplier = 1;
 const maxWorldX = 40;
 const maxWorldY = 20;
 const maxWorldZ = 20;
@@ -80,46 +80,52 @@ const lightColor = hex_color("#f5d20c");
 
 class Bird {
     constructor() {
+        this.maxSpeed = birdRadius * 8; // per second
+        this.maxForceComponent = this.maxSpeed * 0.02; // per second
+        this.maxForceMultiplier = 3.5;
+        this.attentionRadius = birdRadius * 3;
         this.position = vec3(spawnRadius * Math.random() - spawnRadius / 2 + maxWorldX / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldY / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldZ / 2); // initialized at random position in the middle of the world
-        this.velocity = vec3(0.1, 0, 0);// vec3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5); // initialized with random velocity
+        this.velocity = vec3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalized().times(this.maxSpeed); // initialized with random velocity
         this.acceleration = vec3(0, 0, 0);
-        this.maxForce = 0.03;
-        this.maxSpeed = 0.1;
-        this.radius = 2;
     }
 
     // updates position, velocity, and acceleration
-    updateMotion(birds) {
+    updateMotion(birds, dt) {
         // calculate force
-        let force = this.calculateAllForce(birds);
-        this.acceleration = this.acceleration.plus(force);
+        this.acceleration = this.calculateAllForce(birds);
         this.velocity = this.velocity.plus(this.acceleration);
         if (this.velocity.norm() > this.maxSpeed) {
             this.velocity = this.velocity.normalized().times(this.maxSpeed);
         }
-        this.position = this.position.plus(this.velocity);
+        this.position = this.position.plus(this.velocity.times(dt));
+        // wrap-around
         this.position = vec3((this.position[0] + maxWorldX) % maxWorldX, (this.position[1] + maxWorldY) % maxWorldY, (this.position[2] + maxWorldZ) % maxWorldZ);
-        this.acceleration = vec3(0, 0, 0); // zero it out each cycle
     }
 
     calculateAllForce(birds) {
+        let totalMultiplier = 0;
+        if (separationMultiplier > 0 || alignmentMultiplier > 0 || cohesionMultiplier > 0) {
+            totalMultiplier = separationMultiplier + alignmentMultiplier + cohesionMultiplier;
+        }
+        if (totalMultiplier === 0) { // no force at all
+            return vec(0, 0, 0);
+        }
         let force = vec3(0, 0, 0);
-        force = force.plus(this.getSeparationForce(birds).times(separationMultiplier))
-                     .plus(this.getAlignmentForce(birds).times(alignmentMultiplier))
-                     .plus(this.getCohesionForce(birds).times(cohesionMultiplier))
-                     .times(0.2);
+        force = force.plus(this.getSeparationForce(birds).times(separationMultiplier / totalMultiplier * this.maxForceMultiplier))
+                     .plus(this.getAlignmentForce(birds).times(alignmentMultiplier / totalMultiplier * this.maxForceMultiplier))
+                     .plus(this.getCohesionForce(birds).times(cohesionMultiplier / totalMultiplier * this.maxForceMultiplier));
         return force;
     }
 
     getSeparationForce(birds) {
-        let desiredSeparation = 3;
+        let desiredSeparation = this.attentionRadius;
         let inNeighborhood = 0;
         let force = vec3(0, 0, 0);
         for (let i = 0; i < birds.length; i++) {
             let d = this.position.minus(birds[i].position).norm();
             if ((d > 0) && d < desiredSeparation) {
                 let diff = this.position.minus(birds[i].position);
-                force = force.plus(diff.normalized().times(1 / d));
+                force = force.plus(diff.normalized().times(1 / (d / this.attentionRadius * 25))); // scale d up so that the slope isn't so steep
                 inNeighborhood++;
             }
         }
@@ -129,15 +135,15 @@ class Bird {
         }
         if (force.norm() > 0) {
             force = force.normalized().times(this.maxSpeed).minus(this.velocity);
-            if (force.norm() > this.maxForce) {
-                force = force.normalized().times(this.maxForce);
+            if (force.norm() > this.maxForceComponent) {
+                force = force.normalized().times(this.maxForceComponent);
             }
         }
         return force;
     }
 
     getAlignmentForce(birds) {
-        let neighborhoodRadius = 3;
+        let neighborhoodRadius = this.attentionRadius * 2;
         let cumulativeVelocity = vec3(0, 0, 0);
         let inNeighborhood = 0;
         for (let i = 0; i < birds.length; i++) {
@@ -151,8 +157,8 @@ class Bird {
             cumulativeVelocity = cumulativeVelocity.times(1 / inNeighborhood);
             cumulativeVelocity = cumulativeVelocity.normalized().times(this.maxSpeed);
             let force = cumulativeVelocity.minus(this.velocity);
-            if (force.norm() > this.maxForce) {
-                force = force.normalized().times(this.maxForce);
+            if (force.norm() > this.maxForceComponent) {
+                force = force.normalized().times(this.maxForceComponent);
             }
             return force;
         }
@@ -160,7 +166,7 @@ class Bird {
     }
 
     getCohesionForce(birds) {
-        let neighborhoodRadius = 3;
+        let neighborhoodRadius = this.attentionRadius * 2;
         let cumulativePosition = vec3(0, 0, 0);
         let inNeighborhood = 0;
         for (let i = 0; i < birds.length; i++) {
@@ -174,8 +180,8 @@ class Bird {
             let averagePosition = cumulativePosition.times(1 / inNeighborhood);
             let force = averagePosition.minus(this.position);
             force = force.normalized().times(this.maxSpeed).minus(this.velocity);
-            if (force.norm() > this.maxForce) {
-                force = force.normalized().times(this.maxForce);
+            if (force.norm() > this.maxForceComponent) {
+                force = force.normalized().times(this.maxForceComponent);
             }
             return force;
         }
@@ -217,30 +223,30 @@ export class Project extends Scene {
     make_control_panel() {
         // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
         this.key_triggered_button("Increase Separation", ["Control", "1"], () => {
-            separationMultiplier = Math.min(separationMultiplier + 0.1, 10);
+            separationMultiplier = Math.min(separationMultiplier + 0.5, 10);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.key_triggered_button("Decrease Separation", ["Control", "2"], () => {
-            separationMultiplier = Math.max(separationMultiplier - 0.1, 0);
+            separationMultiplier = Math.max(separationMultiplier - 0.5, 0);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.new_line();
         this.key_triggered_button("Increase Alignment", ["Control", "3"], () => {
-            alignmentMultiplier = Math.min(alignmentMultiplier + 0.1, 10);
+            alignmentMultiplier = Math.min(alignmentMultiplier + 0.5, 10);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.key_triggered_button("Decrease Alignment", ["Control", "4"], () => {
-            alignmentMultiplier = Math.max(alignmentMultiplier - 0.1, 0);
+            alignmentMultiplier = Math.max(alignmentMultiplier - 0.5, 0);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.new_line();
         this.key_triggered_button("Increase Cohesion", ["Control", "5"], () => {
-            cohesionMultiplier = Math.min(cohesionMultiplier + 0.1, 10);
+            cohesionMultiplier = Math.min(cohesionMultiplier + 0.5, 10);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.new_line();
         this.key_triggered_button("Decrease Cohesion", ["Control", "6"], () => {
-            cohesionMultiplier = Math.max(cohesionMultiplier - 0.1, 0);
+            cohesionMultiplier = Math.max(cohesionMultiplier - 0.5, 0);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.key_triggered_button("Add bird", ["Control", "z"], () => {
@@ -313,7 +319,7 @@ export class Project extends Scene {
             .times(this.rotateAlign(vec3(0, 0, 1), vec3(bird.velocity[0], bird.velocity[1], bird.velocity[2]).normalized()));
             // console.log(bird.position);
             this.shapes.cone_bird.draw(context, program_state, birdBasis, this.materials.test);
-            bird.updateMotion(this.birds);
+            bird.updateMotion(this.birds, dt);
             
             this.shapes.line_segment.draw(context, program_state, birdBasis.times(Mat4.scale(2, 2, 2)), this.materials.white, "LINES");
         });
