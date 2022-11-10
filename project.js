@@ -68,8 +68,8 @@ class Line extends Shape{
 }
 
 
-var separationMultiplier = 0;
-var alignmentMultiplier = 0;
+var separationMultiplier = 0.1;
+var alignmentMultiplier = 0.5;
 var cohesionMultiplier = 0;
 const maxWorldX = 40;
 const maxWorldY = 20;
@@ -106,7 +106,8 @@ class Bird {
         let force = vec3(0, 0, 0);
         force = force.plus(this.getSeparationForce(birds).times(separationMultiplier))
                      .plus(this.getAlignmentForce(birds).times(alignmentMultiplier))
-                     .plus(this.getCohesionForce(birds).times(cohesionMultiplier));
+                     .plus(this.getCohesionForce(birds).times(cohesionMultiplier))
+                     .times(0.2);
         return force;
     }
 
@@ -197,6 +198,7 @@ export class Project extends Scene {
             new_bird: new Tetrahedron_Shift(),
             cone_bird: new defs.Closed_Cone(10, 10),
             line_segment: new Line(),
+            floor: new defs.Square(),
         };
 
         // *** Materials
@@ -215,31 +217,39 @@ export class Project extends Scene {
     make_control_panel() {
         // Draw the scene's buttons, setup their actions and keyboard shortcuts, and monitor live measurements.
         this.key_triggered_button("Increase Separation", ["Control", "1"], () => {
-            separationMultiplier = Math.min(separationMultiplier + 0.5, 10);
+            separationMultiplier = Math.min(separationMultiplier + 0.1, 10);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.key_triggered_button("Decrease Separation", ["Control", "2"], () => {
-            separationMultiplier = Math.max(separationMultiplier - 0.5, 0);
+            separationMultiplier = Math.max(separationMultiplier - 0.1, 0);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.new_line();
         this.key_triggered_button("Increase Alignment", ["Control", "3"], () => {
-            alignmentMultiplier = Math.min(alignmentMultiplier + 0.5, 10);
+            alignmentMultiplier = Math.min(alignmentMultiplier + 0.1, 10);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.key_triggered_button("Decrease Alignment", ["Control", "4"], () => {
-            alignmentMultiplier = Math.max(alignmentMultiplier - 0.5, 0);
+            alignmentMultiplier = Math.max(alignmentMultiplier - 0.1, 0);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.new_line();
         this.key_triggered_button("Increase Cohesion", ["Control", "5"], () => {
-            cohesionMultiplier = Math.min(cohesionMultiplier + 0.5, 10);
+            cohesionMultiplier = Math.min(cohesionMultiplier + 0.1, 10);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
         this.new_line();
         this.key_triggered_button("Decrease Cohesion", ["Control", "6"], () => {
-            cohesionMultiplier = Math.max(cohesionMultiplier - 0.5, 0);
+            cohesionMultiplier = Math.max(cohesionMultiplier - 0.1, 0);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
+        });
+        this.key_triggered_button("Add bird", ["Control", "z"], () => {
+            this.birds.push(new Bird());
+            console.log('Bird added');
+        });
+        this.key_triggered_button("Remove bird", ["Control", "x"], () => {
+            this.birds.pop();
+            console.log('Bird removed');
         });
     }
 
@@ -286,7 +296,14 @@ export class Project extends Scene {
         this.shapes.world_outline.draw(context, program_state, root.times(Mat4.scale(maxWorldX / 2, maxWorldY / 2, maxWorldZ / 2)).times(Mat4.translation(1, 1, 1)), this.materials.white, "LINES");
        
         //this.shapes.light.draw(context, program_state, root.times(Mat4.translation(maxWorldX/2, maxWorldY/2, maxWorldZ/2)), this.materials.test.override({color: lightColor, diffusivity: 0.0, ambient: 1.0}));
-       
+
+        // draw the floor
+        this.shapes.floor.draw(context, program_state, root
+            .times(Mat4.rotation(3*Math.PI/2, 1, 0, 0))
+            .times(Mat4.scale(maxWorldX / 2, maxWorldY / 2, 1))
+            .times(Mat4.translation(1, -1, 0)),
+            this.materials.test);
+
         // draw the birds
         this.birds.forEach(bird => {
 
