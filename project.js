@@ -76,11 +76,14 @@ const maxWorldY = 20;
 const maxWorldZ = 20;
 const birdRadius = 0.8;
 const spawnRadius = 5;
-const lightColor = hex_color("#f5d20c");
+const lightColor = color(1, 1, 1, 1);
+const sunriseColor = color(1, 125.0/255.0, 134.0/255.0);
+const noonColor = color(1, 1, 1, 1);
+const nightColor = color(21.0 / 255.0, 23.0/255.0, 48.0/255.0);
 
 class Bird {
     constructor() {
-        this.maxSpeed = birdRadius * 8; // per second
+        this.maxSpeed = birdRadius * 16; // per second
         this.maxForceComponent = this.maxSpeed * 0.02; // per second
         this.maxForceMultiplier = 3.5;
         this.attentionRadius = birdRadius * 3;
@@ -301,8 +304,11 @@ export class Project extends Scene {
         
         this.shapes.world_outline.draw(context, program_state, root.times(Mat4.scale(maxWorldX / 2, maxWorldY / 2, maxWorldZ / 2)).times(Mat4.translation(1, 1, 1)), this.materials.white, "LINES");
        
-        //this.shapes.light.draw(context, program_state, root.times(Mat4.translation(maxWorldX/2, maxWorldY/2, maxWorldZ/2)), this.materials.test.override({color: lightColor, diffusivity: 0.0, ambient: 1.0}));
-
+       let sun_pos =  root.times(Mat4.rotation(t, 1, 0, 0))
+       .times(Mat4.translation(0, 0, 50));
+       
+        this.shapes.light.draw(context, program_state, sun_pos, this.materials.test.override({color: lightColor, diffusivity: 0.0, ambient: 1.0}));
+        //this.materials.test.replace({ambient: .5});
         // draw the floor
         this.shapes.floor.draw(context, program_state, root
             .times(Mat4.rotation(3*Math.PI/2, 1, 0, 0))
