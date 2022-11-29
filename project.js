@@ -79,9 +79,9 @@ const birdRadius = 0.8;
 const spawnRadius = 5;
 
 const lightColor = color(1, 1, 1, 1);
-const sunriseColor = color(1, 125.0/255.0, 134.0/255.0);
-const noonColor = color(1, 1, 1, 1);
-const nightColor = color(21.0 / 255.0, 23.0/255.0, 48.0/255.0);
+const sunriseColor = hex_color("#e77a7c");  // 6, 18 sec
+const noonColor = hex_color("#f0f7ff");                      // 12 sec
+const nightColor = hex_color("#1e2036");   // 0, 24 sec
 
 class Bird {
     constructor() {
@@ -382,25 +382,44 @@ export class Project extends Scene {
         program_state.projection_transform = Mat4.perspective(
             Math.PI / 4, context.width / context.height, .1, 1000);
 
-        // TODO: Create Planets (Requirement 1)
-        // this.shapes.[XXX].draw([XXX]) // <--example
 
-        // TODO: Lighting (Requirement 2)
         const light_position = vec4(1, 1, 1, 0);
         // The parameters of the Light are: position, color, size
         program_state.lights = [new Light(light_position, lightColor, 10)];
 
-        // TODO:  Fill in matrix operations and drawing code to draw the solar system scene (Requirements 3 and 4)
         const t = program_state.animation_time / 1000, dt = program_state.animation_delta_time / 1000;
         let root = Mat4.identity();
         
         this.shapes.world_outline.draw(context, program_state, root.times(Mat4.scale(maxWorldX / 2, maxWorldY / 2, maxWorldZ / 2)).times(Mat4.translation(1, 1, 1)), this.materials.white, "LINES");
        
-       let sun_pos =  root.times(Mat4.rotation(t, 1, 0, 0))
-       .times(Mat4.translation(0, 0, 50));
+        let sun_pos =  root.times(Mat4.rotation(-2*Math.PI*(1/24.0)*(t%24), 1, 0, 0))
+        .times(Mat4.translation(0, 0, 50 - (maxWorldZ/2)));
        
         this.shapes.light.draw(context, program_state, sun_pos, this.materials.test.override({color: lightColor, diffusivity: 0.0, ambient: 1.0}));
-        //this.materials.test.replace({ambient: .5});
+        
+        // fog and ambient day night cycle
+        const time = (t + 6) % 24;  // start at sunrise
+        //this.materials.test.replace({fogColor: color(.8, 0.9, 1, 1)});
+        if (time >= 6 && time < 10) {
+            this.materials.test.shader.set_fog_color(sunriseColor.mix(noonColor, (time - 6.0)/4.0 ));
+        }
+        else if (time >= 10 && time < 16){
+            this.materials.test.shader.set_fog_color(noonColor);
+        }
+        else if (time >= 16 && time < 18){
+            this.materials.test.shader.set_fog_color(noonColor.mix(sunriseColor, (time - 16.0)/2.0 ));
+        }
+        else if (time >= 18 && time < 21){
+            this.materials.test.shader.set_fog_color(sunriseColor.mix(nightColor, (time - 18.0)/3.0 ));
+        }
+        else if (time >= 21 && time < 5){
+            this.materials.test.shader.set_fog_color(nightColor);
+        }
+        else if (time >= 5 && time < 6){
+            this.materials.test.shader.set_fog_color(nightColor.mix(sunriseColor, (time - 5.0)/1.0 ));
+        }
+        
+
         // draw the floor
         this.shapes.floor.draw(context, program_state, root
             .times(Mat4.rotation(3*Math.PI/2, 1, 0, 0))
@@ -428,6 +447,8 @@ export class Project extends Scene {
         this.trees.forEach(tree => {
             let treeBasis = root;
             tree.shape.draw(context, program_state, treeBasis, tree.bump);
-        })
+        });
+
+        
     }
 }
