@@ -75,7 +75,7 @@ var cohesionMultiplier = 1;
 const maxWorldX = 40;
 const maxWorldY = 20;
 const maxWorldZ = 20;
-const birdRadius = 0.8;
+const birdRadius = 0.5;
 const spawnRadius = 5;
 
 const lightColor = color(1, 1, 1, 1);
@@ -95,9 +95,9 @@ class Bird {
     }
 
     // updates position, velocity, and acceleration
-    updateMotion(birds, dt) {
+    updateMotion(birds, obstacles, dt) {
         // calculate force
-        this.acceleration = this.calculateAllForce(birds);
+        this.acceleration = this.calculateAllForce(birds, obstacles);
         this.velocity = this.velocity.plus(this.acceleration);
         if (this.velocity.norm() > this.maxSpeed) {
             this.velocity = this.velocity.normalized().times(this.maxSpeed);
@@ -107,7 +107,7 @@ class Bird {
         this.position = vec3((this.position[0] + maxWorldX) % maxWorldX, (this.position[1] + maxWorldY) % maxWorldY, (this.position[2] + maxWorldZ) % maxWorldZ);
     }
 
-    calculateAllForce(birds) {
+    calculateAllForce(birds, obstacles) {
         let totalMultiplier = 0;
         if (separationMultiplier > 0 || alignmentMultiplier > 0 || cohesionMultiplier > 0) {
             totalMultiplier = separationMultiplier + alignmentMultiplier + cohesionMultiplier;
@@ -116,13 +116,13 @@ class Bird {
             return vec(0, 0, 0);
         }
         let force = vec3(0, 0, 0);
-        force = force.plus(this.getSeparationForce(birds).times(separationMultiplier / totalMultiplier * this.maxForceMultiplier))
+        force = force.plus(this.getSeparationForce(birds, obstacles).times(separationMultiplier / totalMultiplier * this.maxForceMultiplier))
                      .plus(this.getAlignmentForce(birds).times(alignmentMultiplier / totalMultiplier * this.maxForceMultiplier))
                      .plus(this.getCohesionForce(birds).times(cohesionMultiplier / totalMultiplier * this.maxForceMultiplier));
         return force;
     }
 
-    getSeparationForce(birds) {
+    getSeparationForce(birds, obstacles) {
         let desiredSeparation = this.attentionRadius;
         let inNeighborhood = 0;
         let force = vec3(0, 0, 0);
@@ -132,6 +132,17 @@ class Bird {
                 let diff = this.position.minus(birds[i].position);
                 force = force.plus(diff.normalized().times(1 / (d / this.attentionRadius * 25))); // scale d up so that the slope isn't so steep
                 inNeighborhood++;
+            }
+        }
+        for (let i = 0; i < obstacles.length; i++) {
+            for (let j = 0; j < obstacles[i].avoidPoints.length; j++) {
+                let d = this.position.minus(obstacles[i].avoidPoints[j]).norm();
+                if ((d > 0) && d < desiredSeparation) {
+                    let diff = this.position.minus(obstacles[i].avoidPoints[j]);
+                    force = force.plus(diff.normalized().times(1 / (d / this.attentionRadius * 25))); // scale d up so that the slope isn't so steep
+                    inNeighborhood++;
+                    console.log("called new obstacle stuff, no errors");
+                }
             }
         }
         // average the separation
@@ -198,6 +209,7 @@ class Tree {
     constructor() {
         this.attentionRadius = birdRadius * 3;
         this.position = vec3(0, 0, 0); // initialized at random position in the middle of the world
+        this.avoidPoints = [this.position]; // @johnny this is just a placeholder, populate this property with the vertices in the bounding box
     }
 }
 
@@ -418,14 +430,6 @@ export class Project extends Scene {
         else if (time >= 5 && time < 6){
             this.materials.test.shader.set_fog_color(nightColor.mix(sunriseColor, (time - 5.0)/1.0 ));
         }
-        
-
-        // draw the floor
-        this.shapes.floor.draw(context, program_state, root
-            .times(Mat4.rotation(3*Math.PI/2, 1, 0, 0))
-            .times(Mat4.scale(maxWorldX / 2, maxWorldY / 2, 1))
-            .times(Mat4.translation(1, -1, 0)),
-            this.materials.test);
 
         // draw the birds
         this.birds.forEach(bird => {
@@ -437,7 +441,7 @@ export class Project extends Scene {
             // console.log(bird.position);
             this.shapes.bird_model.draw(context, program_state, birdBasis, this.bumps.bird);
             if (!this.paused) {
-                bird.updateMotion(this.birds, dt);
+                bird.updateMotion(this.birds, this.trees, dt);
             }
             
             //this.shapes.line_segment.draw(context, program_state, birdBasis.times(Mat4.scale(2, 2, 2)), this.materials.white, "LINES");

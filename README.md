@@ -16,12 +16,10 @@ Right now, it's hard to tell if two birds are colliding or not (i.e. the birds m
 
 4. Figure out how to avoid stationary obstacles such as the ground or a pillar.
 
-5. Implement more realistic model of bird, with wings and everything.
-
-6. Get rid of jittering movement (probably done).
+5. Get rid of jittering movement (probably done).
 This would probably be done by tuning the max force parameter. Another potential source of error is that the current code assumes each animation frame takes the same time, where in reality we're not sure if we have this guarantee. Or maybe one of the vector calculations are just plain wrong.
 
-7. Perhaps add functionality to change the radius used to calculate separation, alignment, and cohesion.
+6. Perhaps add functionality to change the radius used to calculate separation, alignment, and cohesion.
 
 ## Completed Tasks:
 1. Indicate the direction of the bird:
@@ -31,3 +29,5 @@ The birds are all spheres right now so they look like particles with random moti
 Set the camera position using [Spherical Coordinates](https://en.wikipedia.org/wiki/Spherical_coordinate_system). Enable the user to set $r,\phi,\theta$ as they wish within some constraint (like those used in the separation, cohesion, and alignment weights).
 
 3. Add control to spawn/despawn more birds.
+
+4. Implement more realistic model of bird, with wings and everything.
