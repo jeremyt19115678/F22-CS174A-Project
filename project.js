@@ -207,9 +207,18 @@ class Bird {
 
 class Tree {
     constructor() {
-        this.attentionRadius = birdRadius * 3;
-        this.position = vec3(0, 0, 0); // initialized at random position in the middle of the world
-        this.avoidPoints = [this.position]; // @johnny this is just a placeholder, populate this property with the vertices in the bounding box
+        this.position = vec3(0, 0, 0); // initialized at (0, 0, 0)
+        this.avoidPoints = [
+            this.position.plus(vec3(-1.6, -1.6, -1.6)), this.position.plus(vec3(-1.6, -1.6, 1.6)), this.position.plus(vec3(-1.6, 1.6, -1.6)), this.position.plus(vec3(-1.6, 1.6, 1.6)),
+            this.position.plus(vec3(1.6, -1.6, -1.6)), this.position.plus(vec3(1.6, -1.6, 1.6)), this.position.plus(vec3(1.6, 1.6, -1.6)), this.position.plus(vec3(1.6, 1.6, 1.6)),
+            this.position.plus(vec3(-1.6, 0.0, 0.0)), this.position.plus(vec3(1.6, 0.0, 0.0)),
+            this.position.plus(vec3(0.0, -1.6, 0.0)), this.position.plus(vec3(0.0, 1.6, 0.0)),
+            this.position.plus(vec3(0.0, 0.0, -1.6)), this.position.plus(vec3(0.0, 0.0, 1.6)),
+            this.position.plus(vec3(-1.6, -1.6, 0.0)), this.position.plus(vec3(-1.6, 0.0, -1.6)), this.position.plus(vec3(0.0, -1.6, -1.6)),
+            this.position.plus(vec3(1.6, -1.6, 0.0)), this.position.plus(vec3(1.6, 0.0, -1.6)), this.position.plus(vec3(0.0, 1.6, -1.6)),
+            this.position.plus(vec3(-1.6, 1.6, 0.0)), this.position.plus(vec3(-1.6, 0.0, 1.6)), this.position.plus(vec3(0.0, -1.6, 1.6)),
+            this.position.plus(vec3(1.6, 1.6, 0.0)), this.position.plus(vec3(1.6, 0.0, 1.6)), this.position.plus(vec3(0.0, 1.6, 1.6)),
+        ];
     }
 }
 
@@ -309,6 +318,7 @@ export class Project extends Scene {
         }
         this.trees = Array();
         this.paused = false;
+        this.placingTree = false;
     }
 
     make_control_panel() {
@@ -335,11 +345,11 @@ export class Project extends Scene {
             cohesionMultiplier = Math.min(cohesionMultiplier + 0.25, 10);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
-        this.new_line();
         this.key_triggered_button("Decrease Cohesion", ["Control", "6"], () => {
             cohesionMultiplier = Math.max(cohesionMultiplier - 0.25, 0);
             console.log(`separationMultiplier = ${separationMultiplier}, alignmentMultiplier = ${alignmentMultiplier}, cohesionMultiplier = ${cohesionMultiplier}`);
         });
+        this.new_line();
         this.key_triggered_button("Add bird", ["Control", "z"], () => {
             this.birds.push(new Bird());
             console.log('Bird added');
@@ -348,23 +358,91 @@ export class Project extends Scene {
             this.birds.pop();
             console.log('Bird removed');
         });
+        this.new_line();
         this.key_triggered_button("Pause", ["Control", " "], () => {
             this.paused = !this.paused;
         });
 
+        this.new_line();
+        this.new_line();
 
         this.key_triggered_button("Add Tree", ["Shift", "T"], () => {
             let newTree = new Tree();
             let shapeKeys = Object.keys(this.shapes);
-            // let treeNum = Math.random() * 6 << 0;
-            let treeNum = 0;
+            let treeNum = Math.random() * 6 << 0;
             newTree.shape = this.shapes[shapeKeys[10 + treeNum]];
             let bumpKeys = Object.keys(this.bumps);
             newTree.bump = this.bumps[bumpKeys[1 + treeNum]];
-            this.trees.push(newTree);
+            this.newTree = newTree;
 
-            console.log(treeNum+1);
-        })
+            this.placingTree = !this.placingTree;
+        });
+        this.new_line();
+        this.key_triggered_button("Move tree +y", ["ArrowUp"], () => {
+            if (this.placingTree && this.newTree.position[2] > 0) {
+                console.log("moving +y");
+                this.newTree.position[2] -= 1;
+                this.newTree.avoidPoints.forEach(point => {
+                    point[2] -= 1;
+                });
+            }
+        });
+        this.key_triggered_button("Move tree -y", ["ArrowDown"], () => {
+            if (this.placingTree && this.newTree.position[2] < maxWorldY) {
+                console.log("moving -y");
+                this.newTree.position[2] += 1;
+                this.newTree.avoidPoints.forEach(point => {
+                    point[2] += 1;
+                });
+            }
+        });
+        this.new_line();
+        this.key_triggered_button("Move tree -x", ["ArrowLeft"], () => {
+            if (this.placingTree && this.newTree.position[0] > 0) {
+                console.log("moving -x");
+                this.newTree.position[0] -= 1;
+                this.newTree.avoidPoints.forEach(point => {
+                    point[0] -= 1;
+                });
+            }
+        });
+        this.key_triggered_button("Move tree +x", ["ArrowRight"], () => {
+            if (this.placingTree && this.newTree.position[0] < maxWorldX) {
+                console.log("moving +x");
+                this.newTree.position[0] += 1;
+                this.newTree.avoidPoints.forEach(point => {
+                    point[0] += 1;
+                });
+            }
+        });
+        this.new_line();
+        this.key_triggered_button("Move tree +z", ["."], () => {
+            if (this.placingTree && this.newTree.position[1] < maxWorldZ) {
+                console.log("moving +z");
+                this.newTree.position[1] += 1;
+                this.newTree.avoidPoints.forEach(point => {
+                    point[1] += 1;
+                });
+            }
+        });
+        this.key_triggered_button("Move tree -z", [","], () => {
+            if (this.placingTree && this.newTree.position[1] > 0) {
+                console.log("moving -z");
+                this.newTree.position[1] -= 1;
+                this.newTree.avoidPoints.forEach(point => {
+                    point[1] -= 1;
+                });
+            }
+        });
+        this.new_line();
+        this.key_triggered_button("Confirm tree", ["Enter"], () => {
+            if (this.placingTree) {
+                console.log("placing tree");
+                this.trees.push(this.newTree);
+                this.placingTree = false;
+                this.newTree = null;
+            }
+        });
     }
 
     rotateAlign(v1, v2)
@@ -401,6 +479,13 @@ export class Project extends Scene {
 
         const t = program_state.animation_time / 1000, dt = program_state.animation_delta_time / 1000;
         let root = Mat4.identity();
+
+        if (this.paused || this.placingTree) {
+            program_state.animation_time = this.pausedTime;
+        }
+        else {
+            this.pausedTime = program_state.animation_time;
+        }
         
         this.shapes.world_outline.draw(context, program_state, root.times(Mat4.scale(maxWorldX / 2, maxWorldY / 2, maxWorldZ / 2)).times(Mat4.translation(1, 1, 1)), this.materials.white, "LINES");
        
@@ -440,17 +525,26 @@ export class Project extends Scene {
             .times(this.rotateAlign(vec3(0, 0, 1), vec3(bird.velocity[0], bird.velocity[1], bird.velocity[2]).normalized()));
             // console.log(bird.position);
             this.shapes.bird_model.draw(context, program_state, birdBasis, this.bumps.bird);
-            if (!this.paused) {
+            if (!this.paused && !this.placingTree) {
                 bird.updateMotion(this.birds, this.trees, dt);
             }
             
             //this.shapes.line_segment.draw(context, program_state, birdBasis.times(Mat4.scale(2, 2, 2)), this.materials.white, "LINES");
         });
-
+        if (this.newTree) {
+            let treeBasis = root
+                .times(Mat4.translation(this.newTree.position[0], this.newTree.position[1], this.newTree.position[2]))
+                .times(Mat4.scale(2, 2, 2));
+            this.newTree.shape.draw(context, program_state, treeBasis, this.newTree.bump);
+            this.shapes.world_outline.draw(context, program_state, treeBasis.times(Mat4.scale(1.6 ,1.6, 1.6)), this.materials.white, "LINES")
+        }
         // draw the trees
         this.trees.forEach(tree => {
-            let treeBasis = root;
+            let treeBasis = root
+                .times(Mat4.translation(tree.position[0], tree.position[1], tree.position[2]))
+                .times(Mat4.scale(2, 2, 2));
             tree.shape.draw(context, program_state, treeBasis, tree.bump);
+            this.shapes.world_outline.draw(context, program_state, treeBasis.times(Mat4.scale(1.6 ,1.6, 1.6)), this.materials.white, "LINES")
         });
 
         
