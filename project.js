@@ -89,10 +89,10 @@ class Bird {
         this.maxForceComponent = this.maxSpeed * 0.02; // per second
         this.maxForceMultiplier = 1;
         this.attentionRadius = birdRadius * 3;
-        // this.position = vec3(spawnRadius * Math.random() - spawnRadius / 2 + maxWorldX / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldY / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldZ / 2); // initialized at random position in the middle of the world
-        this.position = vec3(maxWorldX/2, maxWorldY/2, maxWorldZ/2);
-        this.velocity = vec3(this.maxSpeed, 0, 0);
-        // this.velocity = vec3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalized().times(this.maxSpeed); // initialized with random velocity
+        this.position = vec3(spawnRadius * Math.random() - spawnRadius / 2 + maxWorldX / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldY / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldZ / 2); // initialized at random position in the middle of the world
+        // this.position = vec3(maxWorldX/2, maxWorldY/2, maxWorldZ/2);
+        // this.velocity = vec3(this.maxSpeed, 0, 0);
+        this.velocity = vec3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalized().times(this.maxSpeed); // initialized with random velocity
         this.acceleration = vec3(0, 0, 0);
     }
 
@@ -270,7 +270,12 @@ class Bird {
             // console.log("collision too far, no reaction yet");
             return vec3(0, 0, 0);
         } else if (relevantCollision.collision_type === "base") {
-            console.log("there's a colision with base and i'm not sure what to do yet");
+            console.log("there's a collision with base and i'm not sure what to do yet");
+            let force = vec3(0, - this.velocity[1], 0);
+            if (force.norm() > this.maxForceComponent) {
+                force = force.normalized().times(this.maxForceComponent);
+            }
+            return force;
         } else { // if we are colliding with the side
             let birdPositionXZ = vec(this.position[0], this.position[2]);
             let treeCenterXZ = vec(relevantCollision.collision_entity.position[0], relevantCollision.collision_entity.position[2]);
@@ -420,7 +425,7 @@ export class Project extends Scene {
         };
 
         this.initial_camera_location = Mat4.look_at(vec3(maxWorldX / 2, maxWorldY * 1.5, maxWorldZ * 3), vec3(maxWorldX/2, maxWorldY/2, maxWorldZ/2), vec3(0, 1, 0));
-        this.birds = Array(1);
+        this.birds = Array(25);
         for (let i = 0; i < this.birds.length; i++) {
             this.birds[i] = new Bird();
         }
