@@ -264,8 +264,8 @@ class Bird {
             return vec3(0, 0, 0);
         }
         let relevantCollision = validCollisions[0];
-        let idealDistance = relevantCollision.collision_entity.visibleRadius * 1.5;
-        let birdAwareDistance = idealDistance * 2;
+        let idealDistance = relevantCollision.collision_entity.visibleRadius * 1.7;
+        let birdAwareDistance = idealDistance * 3;
         if (relevantCollision.collision_point.minus(this.position).norm() > birdAwareDistance) {
             // console.log("collision too far, no reaction yet");
             return vec3(0, 0, 0);
@@ -281,7 +281,7 @@ class Bird {
             let treeCenterXZ = vec(relevantCollision.collision_entity.position[0], relevantCollision.collision_entity.position[2]);
             let birdTreeDistXZ = birdPositionXZ.minus(treeCenterXZ).norm()
             let length = 0;
-            if (birdTreeDistXZ == 0) {
+            if (birdTreeDistXZ === 0) {
                 return vec3(0, 0, 0);
             } else if (birdTreeDistXZ < idealDistance) {
                 length = Math.sqrt(birdTreeDistXZ ** 2 + idealDistance ** 2);
@@ -358,6 +358,7 @@ export class Project extends Scene {
             tree_4: new Shape_From_File("assets/Tree_4.obj"),
             tree_5: new Shape_From_File("assets/Tree_5.obj"),
             tree_6: new Shape_From_File("assets/Tree_6.obj"),
+            cloud: new Shape_From_File("assets/Cloud.obj"),
         };
 
         // *** Materials
@@ -422,6 +423,13 @@ export class Project extends Scene {
                 specularity: .5,
                 texture: new Texture("assets/3275408258_2048x2048_6195987693227547908.png")
             }),
+            cloud: new Material (new defs.Fake_Bump_Map(1), {
+                color: color(.5, .5, .5, 1),
+                ambient: .6,
+                diffusivity: .7,
+                specularity: .7,
+                texture: new Texture("assets/3160191108_2048x2048_6195987693227547908.png")
+            }),
         };
 
         this.initial_camera_location = Mat4.look_at(vec3(maxWorldX / 2, maxWorldY * 1.5, maxWorldZ * 3), vec3(maxWorldX/2, maxWorldY/2, maxWorldZ/2), vec3(0, 1, 0));
@@ -481,7 +489,7 @@ export class Project extends Scene {
 
         this.key_triggered_button("Add Tree", ["Shift", "T"], () => {
             let newTree = new Tree();
-            newTree.position = vec3(10, 10, 10); 
+            newTree.position = vec3(0, 0, 0);
             let shapeKeys = Object.keys(this.shapes);
             let treeNum = Math.random() * 6 << 0;
             newTree.shape = this.shapes[shapeKeys[10 + treeNum]];
@@ -641,6 +649,7 @@ export class Project extends Scene {
             let boundingBoxBasis = treeBasis.times(Mat4.translation(this.newTree.boundingBoxCenter[0], this.newTree.boundingBoxCenter[1], this.newTree.boundingBoxCenter[2]))
                 .times(Mat4.scale(this.newTree.boundingBoxScale[0], this.newTree.boundingBoxScale[1], this.newTree.boundingBoxScale[2]));
             this.shapes.world_outline.draw(context, program_state, boundingBoxBasis, this.materials.white, "LINES");
+            this.shapes.cloud.draw(context, program_state, treeBasis.times(Mat4.translation(0.3, -1.6, 0)), this.bumps.cloud);
         }
         // draw the trees
         this.trees.forEach(tree => {
@@ -650,7 +659,8 @@ export class Project extends Scene {
             tree.shape.draw(context, program_state, treeBasis, tree.bump);
             let boundingBoxBasis = treeBasis.times(Mat4.translation(tree.boundingBoxCenter[0], tree.boundingBoxCenter[1], tree.boundingBoxCenter[2]))
                 .times(Mat4.scale(tree.boundingBoxScale[0], tree.boundingBoxScale[1], tree.boundingBoxScale[2]));
-            this.shapes.world_outline.draw(context, program_state, boundingBoxBasis, this.materials.white, "LINES")
+            this.shapes.world_outline.draw(context, program_state, boundingBoxBasis, this.materials.white, "LINES");
+            this.shapes.cloud.draw(context, program_state, treeBasis.times(Mat4.translation(0.3, -1.6, 0)), this.bumps.cloud);
         });
 
         
