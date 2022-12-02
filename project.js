@@ -89,8 +89,10 @@ class Bird {
         this.maxForceComponent = this.maxSpeed * 0.02; // per second
         this.maxForceMultiplier = 1;
         this.attentionRadius = birdRadius * 3;
-        this.position = vec3(spawnRadius * Math.random() - spawnRadius / 2 + maxWorldX / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldY / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldZ / 2); // initialized at random position in the middle of the world
-        this.velocity = vec3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalized().times(this.maxSpeed); // initialized with random velocity
+        // this.position = vec3(spawnRadius * Math.random() - spawnRadius / 2 + maxWorldX / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldY / 2, spawnRadius * Math.random() - spawnRadius / 2 + maxWorldZ / 2); // initialized at random position in the middle of the world
+        this.position = vec3(maxWorldX/2, maxWorldY/2, maxWorldZ/2);
+        this.velocity = vec3(this.maxSpeed, 0, 0);
+        // this.velocity = vec3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalized().times(this.maxSpeed); // initialized with random velocity
         this.acceleration = vec3(0, 0, 0);
     }
 
@@ -116,13 +118,14 @@ class Bird {
             return vec(0, 0, 0);
         }
         let force = vec3(0, 0, 0);
-        force = force.plus(this.getSeparationForce(birds, obstacles).times(separationMultiplier / totalMultiplier * this.maxForceMultiplier))
+        force = force.plus(this.getSeparationForce(birds).times(separationMultiplier / totalMultiplier * this.maxForceMultiplier))
                      .plus(this.getAlignmentForce(birds).times(alignmentMultiplier / totalMultiplier * this.maxForceMultiplier))
-                     .plus(this.getCohesionForce(birds).times(cohesionMultiplier / totalMultiplier * this.maxForceMultiplier));
+                     .plus(this.getCohesionForce(birds).times(cohesionMultiplier / totalMultiplier * this.maxForceMultiplier))
+                     .plus(this.getSteeringForce(obstacles));
         return force;
     }
 
-    getSeparationForce(birds, obstacles) {
+    getSeparationForce(birds) {
         let desiredSeparation = this.attentionRadius;
         let inNeighborhood = 0;
         let force = vec3(0, 0, 0);
@@ -132,17 +135,6 @@ class Bird {
                 let diff = this.position.minus(birds[i].position);
                 force = force.plus(diff.normalized().times(1 / (d / this.attentionRadius * 25))); // scale d up so that the slope isn't so steep
                 inNeighborhood++;
-            }
-        }
-        for (let i = 0; i < obstacles.length; i++) {
-            for (let j = 0; j < obstacles[i].avoidPoints.length; j++) {
-                let d = this.position.minus(obstacles[i].avoidPoints[j]).norm();
-                if ((d > 0) && d < desiredSeparation) {
-                    let diff = this.position.minus(obstacles[i].avoidPoints[j]);
-                    force = force.plus(diff.normalized().times(1 / (d / this.attentionRadius * 25))); // scale d up so that the slope isn't so steep
-                    inNeighborhood++;
-                    console.log("called new obstacle stuff, no errors");
-                }
             }
         }
         // average the separation
@@ -203,22 +195,138 @@ class Bird {
         }
         return vec3(0, 0, 0);
     }
+
+    getIntersectionOfTwoCircles2D(x1, y1, r1, x2, y2, r2) {
+        var centerdx = x1 - x2;
+        var centerdy = y1 - y2;
+        var R = Math.sqrt(centerdx * centerdx + centerdy * centerdy);
+        if (!(Math.abs(r1 - r2) <= R && R <= r1 + r2)) { // no intersection
+            return []; // empty list of results
+        }
+        // intersection(s) should exist
+        var R2 = R*R;
+        var R4 = R2*R2;
+        var a = (r1*r1 - r2*r2) / (2 * R2);
+        var r2r2 = (r1*r1 - r2*r2);
+        var c = Math.sqrt(2 * (r1*r1 + r2*r2) / R2 - (r2r2 * r2r2) / R4 - 1);
+        var fx = (x1+x2) / 2 + a * (x2 - x1);
+        var gx = c * (y2 - y1) / 2;
+        var ix1 = fx + gx;
+        var ix2 = fx - gx;
+
+        var fy = (y1+y2) / 2 + a * (y2 - y1);
+        var gy = c * (x1 - x2) / 2;
+        var iy1 = fy + gy;
+        var iy2 = fy - gy
+        return [vec(ix1, iy1), vec(ix2, iy2)];
+    }
+    
+    getSteeringForce(trees) {
+        let validCollisions = [];
+        for (let i = 0; i < trees.length; i++) {
+            // check if the bird would collide with the sides of the tree
+            let c_x = this.position[0] - trees[i].position[0];
+            let c_z = this.position[2] - trees[i].position[2];
+            let a = (this.velocity[0] ** 2 + this.velocity[2] ** 2);
+            let b = 2 * this.velocity[0] * c_x + 2 * this.velocity[2] * c_z;
+            let c = c_x ** 2 + c_z ** 2 - trees[i].visibleRadius ** 2;
+            let discriminant = (b ** 2 - 4 * a * c);
+            if (discriminant >= 0 && a > 0) { // there's a chance of collision
+                let alpha_1 = (- b + Math.sqrt(discriminant)) / (2 * a);
+                let collision_point_1 = this.position.plus(this.velocity.times(alpha_1));
+                if ((Math.abs(collision_point_1[1] - trees[i].position[1]) <= trees[i].height && alpha_1 >= 0)) {
+                    validCollisions.push({ alpha: alpha_1, collision_type: "side", collision_point: collision_point_1, collision_entity: trees[i] });
+                }
+                let alpha_2 = (- b - Math.sqrt(discriminant)) / (2 * a);
+                let collision_point_2 = this.position.plus(this.velocity.times(alpha_2));
+                if ((Math.abs(collision_point_2[1] - trees[i].position[1]) <= trees[i].height && alpha_2 >= 0)) { // there is a collision if the bird continues its current direction
+                    validCollisions.push({ alpha: alpha_1, collision_type: "side", collision_point: collision_point_2, collision_entity: trees[i] });
+                }
+            }
+            
+            // check if bird would collide with the two bases
+            let y_h = trees[i].position[1] + trees[i].height / 2;
+            let alpha_3 = (y_h - this.position[1]) / this.velocity[1];
+            let collision_point_3 = this.position.plus(this.velocity.times(alpha_3));
+            if (collision_point_3.minus(vec3(trees[i].position[0], y_h, trees[i].position[2])).norm() < trees[i].visibleRadius && alpha_3 >= 0) {
+                validCollisions.push({ alpha: alpha_3, collision_type: "base", collision_point: collision_point_3, collision_entity: trees[i] });
+            }
+            let y_l = trees[i].position[1] - trees[i].height / 2;
+            let alpha_4 = (y_l - this.position[1]) / this.velocity[1];
+            let collision_point_4 = this.position.plus(this.velocity.times(alpha_4));
+            if (collision_point_4.minus(vec3(trees[i].position[0], y_l, trees[i].position[2])).norm() < trees[i].visibleRadius && alpha_4 >= 0) {
+                validCollisions.push({ alpha: alpha_4, collision_type: "base", collision_point: collision_point_4, collision_entity: trees[i] });
+            }
+        }
+        // find the smallest alpha (closest collision)
+        validCollisions.sort((a, b) => a.alpha - b.alpha);
+        if (validCollisions.length === 0) {
+            return vec3(0, 0, 0);
+        }
+        let relevantCollision = validCollisions[0];
+        let idealDistance = relevantCollision.collision_entity.visibleRadius * 1.5;
+        let birdAwareDistance = idealDistance * 2;
+        if (relevantCollision.collision_point.minus(this.position).norm() > birdAwareDistance) {
+            // console.log("collision too far, no reaction yet");
+            return vec3(0, 0, 0);
+        } else if (relevantCollision.collision_type === "base") {
+            console.log("there's a colision with base and i'm not sure what to do yet");
+        } else { // if we are colliding with the side
+            let birdPositionXZ = vec(this.position[0], this.position[2]);
+            let treeCenterXZ = vec(relevantCollision.collision_entity.position[0], relevantCollision.collision_entity.position[2]);
+            let birdTreeDistXZ = birdPositionXZ.minus(treeCenterXZ).norm()
+            let length = 0;
+            if (birdTreeDistXZ == 0) {
+                return vec3(0, 0, 0);
+            } else if (birdTreeDistXZ < idealDistance) {
+                length = Math.sqrt(birdTreeDistXZ ** 2 + idealDistance ** 2);
+            } else {
+                length = Math.sqrt(birdTreeDistXZ ** 2 - idealDistance ** 2);
+            }
+            
+            let idealPoints = this.getIntersectionOfTwoCircles2D(relevantCollision.collision_entity.position[0], relevantCollision.collision_entity.position[2], idealDistance, this.position[0], this.position[2], length);
+            if (idealPoints.length === 0) {
+                console.log("Something went wrong in calculating circle intersection");            
+                return vec3(0, 0, 0);
+            } else {
+                // chose the point that is easiest to head to
+                let vec_to_point_1 = idealPoints[0].minus(birdPositionXZ);
+                let vec_to_point_2 = idealPoints[1].minus(birdPositionXZ);
+                let birdVelocityXZ = vec(this.velocity[0], this.velocity[2]);
+                let headTo;
+                if (vec_to_point_1.dot(birdVelocityXZ) >= vec_to_point_2.dot(birdVelocityXZ)) {
+                    headTo = idealPoints[0];
+                } else {
+                    headTo = idealPoints[1];
+                }
+                let force = vec3(headTo[0], relevantCollision.collision_point[1], headTo[1]).minus(this.position);
+                force = force.normalized().times(this.maxSpeed).minus(this.velocity);
+                if (force.norm() > this.maxForceComponent) {
+                    force = force.normalized().times(this.maxForceComponent);
+                }
+                // console.log("steering force = " + force);
+                return force;
+            }
+        }
+        return vec3(0, 0, 0);
+    }
 }
 
 class Tree {
     constructor() {
         this.position = vec3(0, 0, 0); // initialized at (0, 0, 0)
-        this.avoidPoints = [
-            this.position.plus(vec3(-1.6, -1.6, -1.6)), this.position.plus(vec3(-1.6, -1.6, 1.6)), this.position.plus(vec3(-1.6, 1.6, -1.6)), this.position.plus(vec3(-1.6, 1.6, 1.6)),
-            this.position.plus(vec3(1.6, -1.6, -1.6)), this.position.plus(vec3(1.6, -1.6, 1.6)), this.position.plus(vec3(1.6, 1.6, -1.6)), this.position.plus(vec3(1.6, 1.6, 1.6)),
-            this.position.plus(vec3(-1.6, 0.0, 0.0)), this.position.plus(vec3(1.6, 0.0, 0.0)),
-            this.position.plus(vec3(0.0, -1.6, 0.0)), this.position.plus(vec3(0.0, 1.6, 0.0)),
-            this.position.plus(vec3(0.0, 0.0, -1.6)), this.position.plus(vec3(0.0, 0.0, 1.6)),
-            this.position.plus(vec3(-1.6, -1.6, 0.0)), this.position.plus(vec3(-1.6, 0.0, -1.6)), this.position.plus(vec3(0.0, -1.6, -1.6)),
-            this.position.plus(vec3(1.6, -1.6, 0.0)), this.position.plus(vec3(1.6, 0.0, -1.6)), this.position.plus(vec3(0.0, 1.6, -1.6)),
-            this.position.plus(vec3(-1.6, 1.6, 0.0)), this.position.plus(vec3(-1.6, 0.0, 1.6)), this.position.plus(vec3(0.0, -1.6, 1.6)),
-            this.position.plus(vec3(1.6, 1.6, 0.0)), this.position.plus(vec3(1.6, 0.0, 1.6)), this.position.plus(vec3(0.0, 1.6, 1.6)),
-        ];
+        this.height = 4;
+        this.radius = 2; // this doesn't actually get displayed, 
+        // constant
+        this.xVisibleLowerBound = -1.6;
+        this.xVisibleUpperBound = 1.6;
+        this.yVisibleLowerBound = -1.6;
+        this.yVisibleUpperBound = 1.6;
+        this.zVisibleLowerBound = -1.6;
+        this.zVisibleUpperBound = 1.6;
+        this.boundingBoxCenter = [(this.xVisibleLowerBound + this.xVisibleUpperBound) / 2, (this.yVisibleLowerBound + this.yVisibleUpperBound) / 2, (this.zVisibleLowerBound + this.zVisibleUpperBound) / 2];
+        this.boundingBoxScale = [(-this.xVisibleLowerBound + this.xVisibleUpperBound) / 2, (-this.yVisibleLowerBound + this.yVisibleUpperBound) / 2, (-this.zVisibleLowerBound + this.zVisibleUpperBound) / 2];
+        this.visibleRadius = this.radius * (this.boundingBoxScale[0] + this.boundingBoxScale[2]) / 2;
     }
 }
 
@@ -312,7 +420,7 @@ export class Project extends Scene {
         };
 
         this.initial_camera_location = Mat4.look_at(vec3(maxWorldX / 2, maxWorldY * 1.5, maxWorldZ * 3), vec3(maxWorldX/2, maxWorldY/2, maxWorldZ/2), vec3(0, 1, 0));
-        this.birds = Array(25);
+        this.birds = Array(1);
         for (let i = 0; i < this.birds.length; i++) {
             this.birds[i] = new Bird();
         }
@@ -368,6 +476,7 @@ export class Project extends Scene {
 
         this.key_triggered_button("Add Tree", ["Shift", "T"], () => {
             let newTree = new Tree();
+            newTree.position = vec3(10, 10, 10); 
             let shapeKeys = Object.keys(this.shapes);
             let treeNum = Math.random() * 6 << 0;
             newTree.shape = this.shapes[shapeKeys[10 + treeNum]];
@@ -379,59 +488,47 @@ export class Project extends Scene {
         });
         this.new_line();
         this.key_triggered_button("Move tree +y", ["ArrowUp"], () => {
-            if (this.placingTree && this.newTree.position[2] > 0) {
+            if (this.placingTree && this.newTree.position[1] + 1 + this.newTree.height / 2 < maxWorldY) {
                 console.log("moving +y");
-                this.newTree.position[2] -= 1;
-                this.newTree.avoidPoints.forEach(point => {
-                    point[2] -= 1;
-                });
+                this.newTree.position[1] += 1;
+                console.log(this.newTree.position);
             }
         });
         this.key_triggered_button("Move tree -y", ["ArrowDown"], () => {
-            if (this.placingTree && this.newTree.position[2] < maxWorldY) {
+            if (this.placingTree && this.newTree.position[1] - 1 - this.newTree.height / 2 > 0) {
                 console.log("moving -y");
-                this.newTree.position[2] += 1;
-                this.newTree.avoidPoints.forEach(point => {
-                    point[2] += 1;
-                });
+                this.newTree.position[1] -= 1;
+                console.log(this.newTree.position);
             }
         });
         this.new_line();
         this.key_triggered_button("Move tree -x", ["ArrowLeft"], () => {
-            if (this.placingTree && this.newTree.position[0] > 0) {
+            if (this.placingTree && this.newTree.position[0] - 1 - this.newTree.radius / 2 > 0) {
                 console.log("moving -x");
                 this.newTree.position[0] -= 1;
-                this.newTree.avoidPoints.forEach(point => {
-                    point[0] -= 1;
-                });
+                console.log(this.newTree.position);
             }
         });
         this.key_triggered_button("Move tree +x", ["ArrowRight"], () => {
-            if (this.placingTree && this.newTree.position[0] < maxWorldX) {
+            if (this.placingTree && this.newTree.position[0] + 1 + this.newTree.radius / 2 < maxWorldX) {
                 console.log("moving +x");
                 this.newTree.position[0] += 1;
-                this.newTree.avoidPoints.forEach(point => {
-                    point[0] += 1;
-                });
+                console.log(this.newTree.position);
             }
         });
         this.new_line();
         this.key_triggered_button("Move tree +z", ["."], () => {
-            if (this.placingTree && this.newTree.position[1] < maxWorldZ) {
+            if (this.placingTree && this.newTree.position[2] + 1 + this.newTree.radius / 2 < maxWorldZ) {
                 console.log("moving +z");
-                this.newTree.position[1] += 1;
-                this.newTree.avoidPoints.forEach(point => {
-                    point[1] += 1;
-                });
+                this.newTree.position[2] += 1;
+                console.log(this.newTree.position);
             }
         });
         this.key_triggered_button("Move tree -z", [","], () => {
-            if (this.placingTree && this.newTree.position[1] > 0) {
+            if (this.placingTree && this.newTree.position[2] - 1 - this.newTree.radius / 2 > 0) {
                 console.log("moving -z");
-                this.newTree.position[1] -= 1;
-                this.newTree.avoidPoints.forEach(point => {
-                    point[1] -= 1;
-                });
+                this.newTree.position[2] -= 1;
+                console.log(this.newTree.position);
             }
         });
         this.new_line();
@@ -534,17 +631,21 @@ export class Project extends Scene {
         if (this.newTree) {
             let treeBasis = root
                 .times(Mat4.translation(this.newTree.position[0], this.newTree.position[1], this.newTree.position[2]))
-                .times(Mat4.scale(2, 2, 2));
+                .times(Mat4.scale(this.newTree.radius / 2, this.newTree.height / 2, this.newTree.radius / 2));
             this.newTree.shape.draw(context, program_state, treeBasis, this.newTree.bump);
-            this.shapes.world_outline.draw(context, program_state, treeBasis.times(Mat4.scale(1.6 ,1.6, 1.6)), this.materials.white, "LINES")
+            let boundingBoxBasis = treeBasis.times(Mat4.translation(this.newTree.boundingBoxCenter[0], this.newTree.boundingBoxCenter[1], this.newTree.boundingBoxCenter[2]))
+                .times(Mat4.scale(this.newTree.boundingBoxScale[0], this.newTree.boundingBoxScale[1], this.newTree.boundingBoxScale[2]));
+            this.shapes.world_outline.draw(context, program_state, boundingBoxBasis, this.materials.white, "LINES");
         }
         // draw the trees
         this.trees.forEach(tree => {
             let treeBasis = root
                 .times(Mat4.translation(tree.position[0], tree.position[1], tree.position[2]))
-                .times(Mat4.scale(2, 2, 2));
+                .times(Mat4.scale(tree.radius / 2, tree.height / 2, tree.radius / 2));
             tree.shape.draw(context, program_state, treeBasis, tree.bump);
-            this.shapes.world_outline.draw(context, program_state, treeBasis.times(Mat4.scale(1.6 ,1.6, 1.6)), this.materials.white, "LINES")
+            let boundingBoxBasis = treeBasis.times(Mat4.translation(tree.boundingBoxCenter[0], tree.boundingBoxCenter[1], tree.boundingBoxCenter[2]))
+                .times(Mat4.scale(tree.boundingBoxScale[0], tree.boundingBoxScale[1], tree.boundingBoxScale[2]));
+            this.shapes.world_outline.draw(context, program_state, boundingBoxBasis, this.materials.white, "LINES")
         });
 
         
