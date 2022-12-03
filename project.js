@@ -483,6 +483,11 @@ export class Project extends Scene {
         this.key_triggered_button("Pause", ["Control", " "], () => {
             this.paused = !this.paused;
         });
+        this.key_triggered_button("Reset parameters", ["Shift", "R"], () => {
+            separationMultiplier = 1.5;
+            alignmentMultiplier = 1;
+            cohesionMultiplier = 1;
+        });
 
         this.new_line();
         this.new_line();
